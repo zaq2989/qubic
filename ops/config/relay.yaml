@@ -1,0 +1,25 @@
+server:
+  http_port: 8080
+  grpc_port: 9090
+
+blockchain:
+  endpoint: qubic-node:10000
+
+worker:
+  pool_size: 10
+  heartbeat_timeout: 60s
+
+storage:
+  endpoint: minio:9000
+  access_key_id: minioadmin
+  secret_access_key: minioadmin
+  use_ssl: false
+  bucket_name: wargame-artifacts
+
+log:
+  level: info
+  format: json
+
+metrics:
+  enabled: true
+  port: 2112

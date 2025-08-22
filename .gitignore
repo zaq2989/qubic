@@ -1,0 +1,55 @@
+# Build artifacts
+target/
+build/
+dist/
+*.o
+*.so
+*.a
+*.exe
+
+# Language specific
+node_modules/
+.cargo/
+vendor/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
+tmp/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Test artifacts
+coverage/
+.coverage
+htmlcov/
+test-results/
+
+# Docker
+docker-compose.override.yml
+
+# MinIO data
+minio-data/
+
+# Sandbox artifacts
+sandbox/vms/
+sandbox/snapshots/
+
+# Generated
+artifacts/
+metrics.json
+replay.json

@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: MIT
+FROM debian:bookworm-slim
+
+# Install vulnerable services for PoC
+RUN apt-get update && apt-get install -y \
+    apache2 \
+    libapache2-mod-php \
+    php \
+    mysql-server \
+    openssh-server \
+    netcat-openbsd \
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create vulnerable web app
+RUN mkdir -p /var/www/html/app
+COPY sandbox/docker/vuln-app /var/www/html/app/
+
+# Configure Apache
+RUN a2enmod cgi && \
+    echo "ServerName localhost" >> /etc/apache2/apache2.conf
+
+# Configure SSH (weak for PoC)
+RUN mkdir /var/run/sshd && \
+    echo 'root:toor' | chpasswd && \
+    echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config && \
+    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
+
+# Create test user with weak password
+RUN useradd -m -s /bin/bash testuser && \
+    echo 'testuser:password123' | chpasswd
+
+# Vulnerable services startup script
+COPY sandbox/docker/start-services.sh /start-services.sh
+RUN chmod +x /start-services.sh
+
+# Expose ports
+EXPOSE 22 80 443 3306 8080
+
+# Start services
+CMD ["/start-services.sh"]

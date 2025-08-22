@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: MIT
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+RUN apk add --no-cache git protobuf-dev
+
+# Copy go mod files
+COPY relay/go.mod relay/go.sum ./relay/
+RUN cd relay && go mod download
+
+# Copy source
+COPY relay/ ./relay/
+
+# Build
+RUN cd relay && \
+    protoc --go_out=. --go-grpc_out=. src/worker/worker.proto && \
+    go build -o bin/relay ./src
+
+# Runtime image
+FROM alpine:latest
+
+RUN apk add --no-cache ca-certificates
+
+COPY --from=builder /app/relay/bin/relay /usr/local/bin/
+
+EXPOSE 8080 9090
+
+ENTRYPOINT ["/usr/local/bin/relay"]

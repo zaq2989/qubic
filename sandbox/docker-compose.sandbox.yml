@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: MIT
+version: '3.8'
+
+services:
+  target:
+    build:
+      context: ../..
+      dockerfile: sandbox/docker/Dockerfile.target
+    container_name: wargame-target
+    hostname: target
+    networks:
+      - wargame-net
+    cap_drop:
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
+      - apparmor:unconfined  # For PoC, in production use proper profile
+    ulimits:
+      nproc: 100
+      nofile:
+        soft: 1024
+        hard: 2048
+    mem_limit: 512m
+    cpus: 1.0
+    volumes:
+      - target-logs:/var/log
+
+  attacker:
+    build:
+      context: ../..
+      dockerfile: sandbox/docker/Dockerfile.attacker
+    container_name: wargame-attacker
+    hostname: attacker
+    networks:
+      - wargame-net
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW  # For packet crafting
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:unconfined  # For PoC, in production use proper profile
+    ulimits:
+      nproc: 50
+      nofile:
+        soft: 1024
+        hard: 2048
+    mem_limit: 256m
+    cpus: 1.0
+    volumes:
+      - attacker-logs:/var/log
+      - attack-artifacts:/artifacts
+    environment:
+      - RELAY_ENDPOINT=http://relay:9090
+      - WORKER_ID=attacker-sandbox
+
+  defender:
+    build:
+      context: ../..
+      dockerfile: sandbox/docker/Dockerfile.defender
+    container_name: wargame-defender
+    hostname: defender
+    networks:
+      - wargame-net
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW  # For packet capture
+      - NET_ADMIN  # For promiscuous mode
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:unconfined  # For PoC, in production use proper profile
+    ulimits:
+      nproc: 50
+      nofile:
+        soft: 1024
+        hard: 2048
+    mem_limit: 256m
+    cpus: 1.0
+    volumes:
+      - defender-logs:/var/log
+      - defense-artifacts:/artifacts
+      - pcap-data:/pcap
+    environment:
+      - RELAY_ENDPOINT=http://relay:9090
+      - WORKER_ID=defender-sandbox
+
+networks:
+  wargame-net:
+    driver: bridge
+    internal: true  # No external connectivity
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  target-logs:
+  attacker-logs:
+  defender-logs:
+  attack-artifacts:
+  defense-artifacts:
+  pcap-data:

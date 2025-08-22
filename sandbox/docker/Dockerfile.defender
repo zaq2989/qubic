@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: MIT
+FROM rust:1.74-slim AS builder
+
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy source
+COPY workers/defender/Cargo.toml workers/defender/Cargo.lock ./
+COPY workers/defender/src ./src
+COPY workers/defender/build.rs ./
+COPY relay/src/worker/worker.proto ../relay/src/worker/
+
+# Build
+RUN cargo build --release
+
+# Runtime image
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    tcpdump \
+    tshark \
+    snort \
+    suricata \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 defender
+
+# Copy binary
+COPY --from=builder /app/target/release/defender /usr/local/bin/
+
+# Create directories for logs and rules
+RUN mkdir -p /var/log/defender /etc/defender/rules && \
+    chown -R defender:defender /var/log/defender /etc/defender
+
+# Drop privileges
+USER defender
+
+ENTRYPOINT ["/usr/local/bin/defender"]

@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: MIT
+FROM rust:1.74-slim AS builder
+
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy source
+COPY workers/attacker/Cargo.toml workers/attacker/Cargo.lock ./
+COPY workers/attacker/src ./src
+COPY workers/attacker/build.rs ./
+COPY relay/src/worker/worker.proto ../relay/src/worker/
+
+# Build
+RUN cargo build --release
+
+# Runtime image
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    nmap \
+    netcat-openbsd \
+    curl \
+    tcpdump \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 attacker
+
+# Copy binary
+COPY --from=builder /app/target/release/attacker /usr/local/bin/
+
+# Drop privileges
+USER attacker
+
+ENTRYPOINT ["/usr/local/bin/attacker"]

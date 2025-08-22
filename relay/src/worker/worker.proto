@@ -1,0 +1,96 @@
+// SPDX-License-Identifier: MIT
+syntax = "proto3";
+
+package worker;
+
+option go_package = "github.com/qubic/wargame-relay/worker";
+
+// WorkerService defines the gRPC service for worker communication
+service WorkerService {
+  // Register a worker with the relay
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  
+  // Heartbeat to maintain worker status
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  
+  // Get a job assignment
+  rpc GetJob(GetJobRequest) returns (GetJobResponse);
+  
+  // Report job result
+  rpc ReportResult(ReportResultRequest) returns (ReportResultResponse);
+}
+
+message RegisterRequest {
+  string worker_id = 1;
+  WorkerCapabilities capabilities = 2;
+}
+
+message WorkerCapabilities {
+  repeated string job_types = 1;  // ["ATTACK", "DEFENSE"]
+  uint32 max_concurrent_jobs = 2;
+  uint32 cpu_cores = 3;
+  uint64 memory_mb = 4;
+}
+
+message RegisterResponse {
+  bool success = 1;
+  string message = 2;
+  string session_token = 3;
+}
+
+message HeartbeatRequest {
+  string worker_id = 1;
+  string session_token = 2;
+  WorkerStatus status = 3;
+}
+
+message WorkerStatus {
+  uint32 active_jobs = 1;
+  uint32 completed_jobs = 2;
+  float cpu_usage = 3;
+  float memory_usage = 4;
+}
+
+message HeartbeatResponse {
+  bool acknowledged = 1;
+}
+
+message GetJobRequest {
+  string worker_id = 1;
+  string session_token = 2;
+  repeated string preferred_types = 3;
+}
+
+message GetJobResponse {
+  bool has_job = 1;
+  Job job = 2;
+}
+
+message Job {
+  uint32 job_id = 1;
+  string job_type = 2;
+  bytes seed = 3;
+  bytes target_profile = 4;
+  uint32 time_budget_ms = 5;
+  uint32 round_id = 6;
+}
+
+message ReportResultRequest {
+  string worker_id = 1;
+  string session_token = 2;
+  uint32 job_id = 3;
+  ResultData result = 4;
+}
+
+message ResultData {
+  bytes hash = 1;
+  string uri = 2;
+  bytes signature = 3;
+  bool success = 4;
+  uint32 execution_time_ms = 5;
+}
+
+message ReportResultResponse {
+  bool accepted = 1;
+  string message = 2;
+}

@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: MIT
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+RUN npm ci
+
+# Copy source
+COPY . .
+
+# Build
+RUN npm run build
+
+# Runtime image
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy built application
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/next.config.js ./
+
+# Install production dependencies only
+RUN npm ci --only=production
+
+EXPOSE 3000
+
+CMD ["npm", "start"]

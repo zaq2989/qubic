@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: MIT
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+
+# Create a simple mock Qubic node
+RUN cat > main.go <<'EOF'
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "log"
+    "net/http"
+    "sync"
+    "time"
+)
+
+type Job struct {
+    ID     uint32 `json:"id"`
+    Status string `json:"status"`
+}
+
+var (
+    jobs = make(map[uint32]*Job)
+    mu   sync.RWMutex
+    nextID uint32 = 1
+)
+
+func main() {
+    http.HandleFunc("/submit_job", submitJob)
+    http.HandleFunc("/get_job", getJob)
+    http.HandleFunc("/report_result", reportResult)
+    http.HandleFunc("/health", health)
+    
+    log.Println("Mock Qubic node starting on :10000")
+    log.Fatal(http.ListenAndServe(":10000", nil))
+}
+
+func submitJob(w http.ResponseWriter, r *http.Request) {
+    mu.Lock()
+    defer mu.Unlock()
+    
+    job := &Job{
+        ID:     nextID,
+        Status: "PENDING",
+    }
+    jobs[nextID] = job
+    nextID++
+    
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "job_id": job.ID,
+        "status": "accepted",
+    })
+}
+
+func getJob(w http.ResponseWriter, r *http.Request) {
+    mu.RLock()
+    defer mu.RUnlock()
+    
+    // Return mock job data
+    json.NewEncoder(w).Encode(jobs)
+}
+
+func reportResult(w http.ResponseWriter, r *http.Request) {
+    json.NewEncoder(w).Encode(map[string]bool{
+        "accepted": true,
+    })
+}
+
+func health(w http.ResponseWriter, r *http.Request) {
+    json.NewEncoder(w).Encode(map[string]string{
+        "status": "healthy",
+        "time":   time.Now().Format(time.RFC3339),
+    })
+}
+EOF
+
+# Build
+RUN go build -o mock-node main.go
+
+# Runtime
+FROM alpine:latest
+
+RUN apk add --no-cache ca-certificates
+
+COPY --from=builder /app/mock-node /usr/local/bin/
+
+EXPOSE 10000
+
+CMD ["/usr/local/bin/mock-node"]

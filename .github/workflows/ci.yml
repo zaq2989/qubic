@@ -1,0 +1,240 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  GO_VERSION: '1.21'
+  RUST_VERSION: '1.74'
+  NODE_VERSION: '18'
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          override: true
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+      
+      - name: Run Go tests
+        run: |
+          cd relay && go test ./...
+          cd ../storage && go test ./...
+      
+      - name: Run Rust tests
+        run: |
+          cd workers/attacker && cargo test
+          cd ../defender && cargo test
+      
+      - name: Run JavaScript tests
+        run: |
+          cd dashboard
+          npm ci
+          npm test
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      minio:
+        image: minio/minio
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+        options: --health-cmd "curl -f http://localhost:9000/minio/health/live"
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install pytest requests
+      
+      - name: Run integration tests
+        run: |
+          python -m pytest tests/integration/ -v
+
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Build Docker images
+        run: |
+          docker build -f sandbox/docker/Dockerfile.attacker -t wargame/attacker:test .
+          docker build -f sandbox/docker/Dockerfile.defender -t wargame/defender:test .
+          docker build -f sandbox/docker/Dockerfile.target -t wargame/target:test .
+      
+      - name: Run E2E tests
+        run: |
+          export CI=true
+          python -m pytest tests/e2e/ -v
+
+  determinism-check:
+    name: Determinism Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up environment
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      
+      - name: Run determinism tests
+        run: |
+          chmod +x scripts/assert_determinism.sh
+          ./scripts/assert_determinism.sh
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Run gosec security scanner
+        uses: securego/gosec@master
+        with:
+          args: './relay/... ./storage/...'
+
+  network-isolation-check:
+    name: Network Isolation Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Run network isolation tests
+        run: |
+          chmod +x scripts/assert_no_egress.sh
+          export SKIP_NETWORK_TESTS=false
+          sudo ./scripts/assert_no_egress.sh
+
+  build:
+    name: Build Artifacts
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      
+      - name: Build relay
+        run: |
+          cd relay
+          go build -o bin/relay ./src
+      
+      - name: Build workers
+        run: |
+          cd workers/attacker && cargo build --release
+          cd ../defender && cargo build --release
+      
+      - name: Build storage CLI
+        run: |
+          cd storage
+          go build -o bin/wargame-storage ./src
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries
+          path: |
+            relay/bin/relay
+            workers/attacker/target/release/attacker
+            workers/defender/target/release/defender
+            storage/bin/wargame-storage
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Build Docker images
+        run: |
+          docker build -f sandbox/docker/Dockerfile.attacker -t wargame/attacker:${{ github.sha }} .
+          docker build -f sandbox/docker/Dockerfile.defender -t wargame/defender:${{ github.sha }} .
+          docker build -f sandbox/docker/Dockerfile.target -t wargame/target:${{ github.sha }} .
+      
+      - name: Save Docker images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker save wargame/attacker:${{ github.sha }} | gzip > attacker.tar.gz
+          docker save wargame/defender:${{ github.sha }} | gzip > defender.tar.gz
+          docker save wargame/target:${{ github.sha }} | gzip > target.tar.gz
+      
+      - name: Upload Docker images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-images
+          path: |
+            attacker.tar.gz
+            defender.tar.gz
+            target.tar.gz
