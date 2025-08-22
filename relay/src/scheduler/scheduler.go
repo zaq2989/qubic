@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/qubic/wargame-relay/blockchain"
+	"github.com/qubic/wargame-relay/src/blockchain"
 	"github.com/sirupsen/logrus"
 )
 
@@ -15,15 +15,15 @@ var log = logrus.New()
 
 // Job represents a scheduled job
 type Job struct {
-	ID            uint32
-	Spec          blockchain.JobSpec
-	Status        string
-	AssignedTo    string
-	CreatedAt     time.Time
-	StartedAt     *time.Time
-	CompletedAt   *time.Time
-	Result        *blockchain.ResultDigest
-	RetryCount    int
+	ID          uint32
+	Spec        blockchain.JobSpec
+	Status      string
+	AssignedTo  string
+	CreatedAt   time.Time
+	StartedAt   *time.Time
+	CompletedAt *time.Time
+	Result      *blockchain.ResultDigest
+	RetryCount  int
 }
 
 // Scheduler manages job scheduling and execution
@@ -48,16 +48,16 @@ func New(client *blockchain.Client) *Scheduler {
 // Run starts the scheduler
 func (s *Scheduler) Run(ctx context.Context) {
 	log.Info("Scheduler started")
-	
+
 	// Start job fetcher
 	go s.fetchJobs(ctx)
-	
+
 	// Start job distributor
 	go s.distributeJobs(ctx)
-	
+
 	// Start result collector
 	go s.collectResults(ctx)
-	
+
 	// Wait for context cancellation
 	<-ctx.Done()
 	close(s.stopCh)
@@ -82,7 +82,7 @@ func (s *Scheduler) fetchJobs(ctx context.Context) {
 func (s *Scheduler) fetchNewJobs(ctx context.Context) {
 	// Get current round
 	currentRound := s.client.GetCurrentRound()
-	
+
 	// Fetch pending jobs for current round
 	jobs, err := s.client.ListJobs(ctx, &currentRound, "PENDING")
 	if err != nil {
@@ -108,7 +108,7 @@ func (s *Scheduler) fetchNewJobs(ctx context.Context) {
 		}
 
 		s.jobs[jobRecord.JobID] = job
-		
+
 		// Add to pending queue
 		select {
 		case s.pendingQueue <- jobRecord.JobID:
@@ -138,7 +138,7 @@ func (s *Scheduler) assignJob(ctx context.Context, jobID uint32) {
 		s.mu.Unlock()
 		return
 	}
-	
+
 	// Mark as assigned
 	job.Status = "ASSIGNED"
 	now := time.Now()
@@ -170,7 +170,7 @@ func (s *Scheduler) simulateJobExecution(ctx context.Context, jobID uint32) {
 	job.Status = "COMPLETED"
 	now := time.Now()
 	job.CompletedAt = &now
-	
+
 	// Generate mock result
 	result := blockchain.ResultDigest{
 		Hash: fmt.Sprintf("%x", time.Now().UnixNano()),
@@ -229,12 +229,12 @@ func (s *Scheduler) ListJobs(roundID, status string) ([]*Job, error) {
 		if roundID != "" && fmt.Sprintf("%d", job.Spec.RoundID) != roundID {
 			continue
 		}
-		
+
 		// Filter by status if specified
 		if status != "" && job.Status != status {
 			continue
 		}
-		
+
 		result = append(result, job)
 	}
 

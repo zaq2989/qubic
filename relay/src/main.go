@@ -16,10 +16,10 @@ import (
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 
-	"github.com/qubic/wargame-relay/api"
-	"github.com/qubic/wargame-relay/blockchain"
-	"github.com/qubic/wargame-relay/scheduler"
-	"github.com/qubic/wargame-relay/worker"
+	"github.com/qubic/wargame-relay/src/api"
+	"github.com/qubic/wargame-relay/src/blockchain"
+	"github.com/qubic/wargame-relay/src/scheduler"
+	"github.com/qubic/wargame-relay/src/worker"
 )
 
 var log = logrus.New()
