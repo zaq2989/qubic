@@ -7,8 +7,8 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/qubic/wargame-relay/scheduler"
-	"github.com/qubic/wargame-relay/worker"
+	"github.com/qubic/wargame-relay/src/scheduler"
+	"github.com/qubic/wargame-relay/src/worker"
 )
 
 type Handler struct {

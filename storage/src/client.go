@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-package storage
+package main
 
 import (
 	"context"
