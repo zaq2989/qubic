@@ -3,7 +3,7 @@ syntax = "proto3";
 
 package worker;
 
-option go_package = "github.com/qubic/wargame-relay/worker";
+option go_package = "github.com/qubic/wargame-relay/src/worker";
 
 // WorkerService defines the gRPC service for worker communication
 service WorkerService {

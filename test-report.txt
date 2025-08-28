@@ -1,0 +1,8 @@
+Qubic Wargame Grid Test Report
+==============================
+Date: Thu Aug 28 04:43:59 UTC 2025
+Branch: copilot/fix-3
+Commit: 438c605
+
+Test Results:
+✗ Unit Tests: FAILED

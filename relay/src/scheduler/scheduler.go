@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/qubic/wargame-relay/blockchain"
+	"github.com/qubic/wargame-relay/src/blockchain"
 	"github.com/sirupsen/logrus"
 )
 

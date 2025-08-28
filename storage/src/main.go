@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/qubic/wargame-storage"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -215,8 +214,8 @@ func initConfig() {
 	}
 }
 
-func createClient() (*storage.Client, error) {
-	cfg := &storage.Config{
+func createClient() (*Client, error) {
+	cfg := &Config{
 		Endpoint:        viper.GetString("endpoint"),
 		AccessKeyID:     viper.GetString("access_key_id"),
 		SecretAccessKey: viper.GetString("secret_access_key"),
@@ -224,7 +223,7 @@ func createClient() (*storage.Client, error) {
 		BucketName:      viper.GetString("bucket_name"),
 	}
 
-	return storage.NewClient(cfg)
+	return NewClient(cfg)
 }
 
 func main() {
